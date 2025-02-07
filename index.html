@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Professor Horner's Bible Reading Metrics – Gauges</title>
+  <!-- Bootstrap CSS from CDN -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { padding: 20px; }
+    .current { background-color: #d4edda; }
+    .table td, .table th { vertical-align: middle; }
+    /* Style for gauge container wrappers */
+    .gauge-wrapper {
+      margin: 10px;
+      text-align: center;
+      width: 150px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mb-4">Professor Horner's Bible Reading Metrics – Gauges</h1>
+    
+    <!-- Day Input: Number input and slider -->
+    <div class="form-group">
+      <label for="dayInput"><strong>Enter Day Number:</strong></label>
+      <input type="number" id="dayInput" class="form-control" value="250" min="1">
+    </div>
+    <div class="form-group">
+      <label for="daySlider"><strong>Adjust Day (Slider):</strong></label>
+      <input type="range" id="daySlider" class="form-control-range" min="1" max="1000" value="250" step="1">
+    </div>
+    <button id="calculateBtn" class="btn btn-primary mb-4">Calculate Metrics</button>
+    <hr>
+    
+    <!-- Overall Metrics -->
+    <div id="overallMetrics"></div>
+    
+    <!-- Detailed Lane Metrics -->
+    <div id="lanesMetrics"></div>
+    
+    <hr>
+    <h2>Lane Progress Chart (Bar)</h2>
+    <canvas id="laneChart" width="400" height="200"></canvas>
+    
+    <hr>
+    <h2>Number of Passes Chart (Fractional)</h2>
+    <canvas id="passesChart" width="400" height="200"></canvas>
+    
+    <hr>
+    <h2>Lane Gauges (Circular Progress)</h2>
+    <div id="gaugesContainer"></div>
+  </div>
+
+  <script>
+  /***********************
+   * DATA DEFINITION
+   *
+   * Each lane corresponds to a reading “list” of Bible books. The lane’s totalDays
+   * is the sum of the chapters for the books in that lane.
+   *
+   * For books that combine multiple parts (like "I & II Corinthians"), a `parts` array is used.
+   ***********************/
+  const lanes = [
+    {
+      name: "List 1: The Gospels",
+      totalDays: 89,
+      books: [
+        { name: "Matthew", chapters: 28 },
+        { name: "Mark", chapters: 16 },
+        { name: "Luke", chapters: 24 },
+        { name: "John", chapters: 21 }
+      ]
+    },
+    {
+      name: "List 2: The Pentateuch",
+      totalDays: 187,
+      books: [
+        { name: "Genesis", chapters: 50 },
+        { name: "Exodus", chapters: 40 },
+        { name: "Leviticus", chapters: 27 },
+        { name: "Numbers", chapters: 36 },
+        { name: "Deuteronomy", chapters: 34 }
+      ]
+    },
+    {
+      name: "List 3: Pauline & General Epistles 1",
+      totalDays: 78,
+      books: [
+        { name: "Romans", chapters: 16 },
+        { name: "I & II Corinthians", chapters: 29, parts: [
+            { name: "1 Corinthians", chapters: 16 },
+            { name: "2 Corinthians", chapters: 13 }
+          ] },
+        { name: "Galatians", chapters: 6 },
+        { name: "Ephesians", chapters: 6 },
+        { name: "Philippians", chapters: 4 },
+        { name: "Colossians", chapters: 4 },
+        { name: "Hebrews", chapters: 13 }
+      ]
+    },
+    {
+      name: "List 4: Pauline & General Epistles 2",
+      totalDays: 65,
+      books: [
+        { name: "I & II Thessalonians", chapters: 8, parts: [
+            { name: "1 Thessalonians", chapters: 5 },
+            { name: "2 Thessalonians", chapters: 3 }
+          ] },
+        { name: "I & II Timothy", chapters: 10, parts: [
+            { name: "1 Timothy", chapters: 6 },
+            { name: "2 Timothy", chapters: 4 }
+          ] },
+        { name: "Titus", chapters: 3 },
+        { name: "Philemon", chapters: 1 },
+        { name: "James", chapters: 5 },
+        { name: "I & II Peter", chapters: 8, parts: [
+            { name: "1 Peter", chapters: 5 },
+            { name: "2 Peter", chapters: 3 }
+          ] },
+        { name: "I, II & III John", chapters: 7, parts: [
+            { name: "1 John", chapters: 5 },
+            { name: "2 John", chapters: 1 },
+            { name: "3 John", chapters: 1 }
+          ] },
+        { name: "Jude", chapters: 1 },
+        { name: "Revelation", chapters: 22 }
+      ]
+    },
+    {
+      name: "List 5: Wisdom Literature",
+      totalDays: 62,
+      books: [
+        { name: "Job", chapters: 42 },
+        { name: "Ecclesiastes", chapters: 12 },
+        { name: "Song of Solomon", chapters: 8 }
+      ]
+    },
+    {
+      name: "List 6: Psalms",
+      totalDays: 150,
+      books: [
+        { name: "Psalms", chapters: 150 }
+      ]
+    },
+    {
+      name: "List 7: Proverbs",
+      totalDays: 31,
+      books: [
+        { name: "Proverbs", chapters: 31 }
+      ]
+    },
+    {
+      name: "List 8: History 1",
+      totalDays: 249,
+      books: [
+        { name: "Joshua", chapters: 24 },
+        { name: "Judges", chapters: 21 },
+        { name: "Ruth", chapters: 4 },
+        { name: "I & II Samuel", chapters: 55, parts: [
+            { name: "1 Samuel", chapters: 31 },
+            { name: "2 Samuel", chapters: 24 }
+          ] },
+        { name: "I & II Kings", chapters: 47, parts: [
+            { name: "1 Kings", chapters: 22 },
+            { name: "2 Kings", chapters: 25 }
+          ] },
+        { name: "I & II Chronicles", chapters: 65, parts: [
+            { name: "1 Chronicles", chapters: 29 },
+            { name: "2 Chronicles", chapters: 36 }
+          ] },
+        { name: "Ezra", chapters: 10 },
+        { name: "Nehemiah", chapters: 13 },
+        { name: "Esther", chapters: 10 }
+      ]
+    },
+    {
+      name: "List 9: The Prophets",
+      totalDays: 250,
+      books: [
+        { name: "Isaiah", chapters: 66 },
+        { name: "Jeremiah", chapters: 52 },
+        { name: "Lamentations", chapters: 5 },
+        { name: "Ezekiel", chapters: 48 },
+        { name: "Daniel", chapters: 12 },
+        { name: "Hosea", chapters: 14 },
+        { name: "Joel", chapters: 3 },
+        { name: "Amos", chapters: 9 },
+        { name: "Obadiah", chapters: 1 },
+        { name: "Jonah", chapters: 4 },
+        { name: "Micah", chapters: 7 },
+        { name: "Nahum", chapters: 3 },
+        { name: "Habakkuk", chapters: 3 },
+        { name: "Zephaniah", chapters: 3 },
+        { name: "Haggai", chapters: 2 },
+        { name: "Zechariah", chapters: 14 },
+        { name: "Malachi", chapters: 4 }
+      ]
+    },
+    {
+      name: "List 10: Acts",
+      totalDays: 28,
+      books: [
+        { name: "Acts", chapters: 28 }
+      ]
+    }
+  ];
+
+  /***********************
+   * METRICS CALCULATION
+   *
+   * For each lane a reader advances one chapter per day. A lane is considered
+   * complete when its totalDays (i.e. every chapter) has been covered.
+   * For a given day, we calculate:
+   *   - fullCycles: number of complete passes,
+   *   - currentCycle: number of chapters read in the current pass,
+   *   - and per-book progress.
+   ***********************/
+  function computeLaneProgress(lane, day) {
+    const cycleLength = lane.totalDays;
+    const fullCycles = Math.floor(day / cycleLength);
+    let currentCycle = day % cycleLength;
+    if (currentCycle === 0) { currentCycle = cycleLength; }
+    let currentBookIndex = null;
+    let rem = currentCycle;
+    for (let i = 0; i < lane.books.length; i++) {
+      if (rem > lane.books[i].chapters) {
+        rem -= lane.books[i].chapters;
+      } else {
+        currentBookIndex = i;
+        break;
+      }
+    }
+    const booksMetrics = lane.books.map((book, index) => {
+      let currentCycleRead = 0;
+      if (index < currentBookIndex) {
+        currentCycleRead = book.chapters;
+      } else if (index === currentBookIndex) {
+        currentCycleRead = rem;
+      }
+      const totalRead = fullCycles * book.chapters + currentCycleRead;
+      let partsMetrics = [];
+      if (book.parts) {
+        let remPart = (index === currentBookIndex) ? rem : (index < currentBookIndex ? book.chapters : 0);
+        book.parts.forEach(part => {
+          let partCycleRead = 0;
+          if (remPart > part.chapters) {
+            partCycleRead = part.chapters;
+            remPart -= part.chapters;
+          } else {
+            partCycleRead = remPart;
+            remPart = 0;
+          }
+          partsMetrics.push({
+            name: part.name,
+            chapters: part.chapters,
+            totalRead: fullCycles * part.chapters + partCycleRead,
+            currentCycleRead: partCycleRead,
+            isCurrent: (index === currentBookIndex && partCycleRead < part.chapters && partCycleRead > 0)
+          });
+        });
+      }
+      return {
+        name: book.name,
+        chapters: book.chapters,
+        totalRead: totalRead,
+        currentCycleRead: currentCycleRead,
+        isCurrent: index === currentBookIndex,
+        parts: partsMetrics
+      };
+    });
+    return {
+      fullCycles: fullCycles,
+      currentCycle: currentCycle,
+      books: booksMetrics
+    };
+  }
+
+  /***********************
+   * GAUGE CHARTS: Lane Gauges (Circular Progress)
+   *
+   * For each lane we use a half‑doughnut (gauge) chart to show the current
+   * cycle progress as a percentage. These gauges are created once and then updated.
+   ***********************/
+  let gaugeCharts = [];
+  function updateLaneGauges(day) {
+    const container = document.getElementById("gaugesContainer");
+    // If no gauges exist yet, create one canvas per lane.
+    if (gaugeCharts.length === 0) {
+      container.innerHTML = ""; // Clear any previous content.
+      lanes.forEach((lane, index) => {
+        // Create a wrapper div for the gauge and label.
+        let wrapper = document.createElement("div");
+        wrapper.className = "gauge-wrapper";
+        // Create the canvas.
+        let canvas = document.createElement("canvas");
+        canvas.id = `gauge-${index}`;
+        canvas.width = 150;
+        canvas.height = 150;
+        // Create a label for the lane.
+        let label = document.createElement("div");
+        label.innerText = lane.name;
+        // Append canvas and label to the wrapper, and wrapper to container.
+        wrapper.appendChild(canvas);
+        wrapper.appendChild(label);
+        container.appendChild(wrapper);
+  
+        // Calculate progress for this lane.
+        let remainder = day % lane.totalDays;
+        if (remainder === 0) { remainder = lane.totalDays; }
+        let progress = (remainder / lane.totalDays) * 100;
+  
+        // Create a half‑doughnut gauge chart.
+        let ctx = canvas.getContext("2d");
+        let gaugeChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Progress', 'Remaining'],
+            datasets: [{
+              data: [progress, 100 - progress],
+              backgroundColor: ['rgba(75, 192, 192, 0.8)', 'rgba(200,200,200,0.3)'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            rotation: -90,         // Start at the top.
+            circumference: 180,      // Half circle gauge.
+            cutout: '70%',           // Thickness of the ring.
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false }
+            }
+          }
+        });
+        gaugeCharts.push(gaugeChart);
+      });
+    } else {
+      // If gauges already exist, update each with the new progress.
+      lanes.forEach((lane, index) => {
+        let remainder = day % lane.totalDays;
+        if (remainder === 0) { remainder = lane.totalDays; }
+        let progress = (remainder / lane.totalDays) * 100;
+        gaugeCharts[index].data.datasets[0].data = [progress, 100 - progress];
+        gaugeCharts[index].update();
+      });
+    }
+  }
+
+  /***********************
+   * UPDATE HTML & CHARTS
+   ***********************/
+  let laneChart = null;
+  let passesChart = null;
+  function updateMetrics() {
+    const day = parseInt(document.getElementById("dayInput").value) || 1;
+    
+    // Synchronize slider and number input.
+    document.getElementById("daySlider").value = day;
+    
+    // Overall Bible completions (whole passes): minimum complete cycles over lanes.
+    let bibleCompletions = lanes.reduce((minVal, lane) => {
+      return Math.min(minVal, Math.floor(day / lane.totalDays));
+    }, Infinity);
+    
+    // Overall fractional passes (minimum across lanes).
+    let biblePasses = lanes.reduce((minVal, lane) => {
+      return Math.min(minVal, day / lane.totalDays);
+    }, Infinity);
+    
+    // Determine bottleneck lane.
+    const bottleneckLane = lanes.reduce((maxLane, lane) => {
+      return (lane.totalDays > maxLane.totalDays) ? lane : maxLane;
+    }, lanes[0]);
+    let bottleneckRemainder = day % bottleneckLane.totalDays;
+    let bottleneckProgress = (bottleneckRemainder === 0) ? 1 : bottleneckRemainder / bottleneckLane.totalDays;
+    
+    // Build overall metrics HTML.
+    let overallHTML = `
+      <h2>Overall Metrics</h2>
+      <p><strong>Day:</strong> ${day}</p>
+      <p><strong>Bible completions (whole passes):</strong> ${bibleCompletions}</p>
+      <p>
+        <strong>Overall Bible passes (fractional, minimum across lanes):</strong> ${biblePasses.toFixed(2)}
+      </p>
+      <p>
+        <strong>Bottleneck Lane:</strong> ${bottleneckLane.name} (${bottleneckLane.totalDays} chapters) – 
+        Current cycle progress: ${(bottleneckProgress * 100).toFixed(2)}%
+      </p>
+    `;
+    document.getElementById("overallMetrics").innerHTML = overallHTML;
+    
+    // Build detailed lane metrics.
+    let lanesHTML = `<h2>Lane Metrics</h2>`;
+    lanes.forEach(lane => {
+      const progress = computeLaneProgress(lane, day);
+      const laneCompletions = Math.floor(day / lane.totalDays);
+      const laneCycleProgress = (day % lane.totalDays === 0 ? 1 : (day % lane.totalDays) / lane.totalDays);
+      const remainingChapters = lane.totalDays - progress.currentCycle;
+      lanesHTML += `<div class="mb-4">
+        <h4>${lane.name}</h4>
+        <p>
+          <strong>Lane completions (whole passes):</strong> ${laneCompletions} &nbsp;&nbsp;
+          <strong>Current cycle progress:</strong> ${(laneCycleProgress * 100).toFixed(2)}% (${progress.currentCycle}/${lane.totalDays} chapters)
+          &nbsp;&nbsp; <strong>Remaining chapters:</strong> ${remainingChapters}
+        </p>
+        <table class="table table-bordered table-sm">
+          <thead>
+            <tr>
+              <th>Book</th>
+              <th>Total Chapters</th>
+              <th>Chapters Read (Total)</th>
+              <th>Current Cycle Read</th>
+            </tr>
+          </thead>
+          <tbody>`;
+      progress.books.forEach(book => {
+        const rowClass = book.isCurrent ? "current" : "";
+        lanesHTML += `<tr class="${rowClass}">
+          <td>${book.name}</td>
+          <td>${book.chapters}</td>
+          <td>${book.totalRead}</td>
+          <td>${book.currentCycleRead}${book.isCurrent ? " (current)" : ""}</td>
+        </tr>`;
+        if (book.parts && book.parts.length > 0) {
+          book.parts.forEach(part => {
+            lanesHTML += `<tr class="table-info">
+              <td style="padding-left: 30px;">${part.name}</td>
+              <td>${part.chapters}</td>
+              <td>${part.totalRead}</td>
+              <td>${part.currentCycleRead}${part.isCurrent ? " (current)" : ""}</td>
+            </tr>`;
+          });
+        }
+      });
+      lanesHTML += `</tbody></table></div>`;
+    });
+    document.getElementById("lanesMetrics").innerHTML = lanesHTML;
+    
+    // Update bar charts.
+    updateLaneChart(day);
+    updatePassesChart(day);
+    // Update gauge (circular) charts.
+    updateLaneGauges(day);
+  }
+  
+  /***********************
+   * BAR CHART: Lane Progress Chart
+   ***********************/
+  function updateLaneChart(day) {
+    const labels = lanes.map(lane => lane.name);
+    const data = lanes.map(lane => {
+      let remainder = day % lane.totalDays;
+      if (remainder === 0) remainder = lane.totalDays;
+      return (remainder / lane.totalDays) * 100;
+    });
+    const ctx = document.getElementById('laneChart').getContext('2d');
+    if (laneChart) {
+      laneChart.data.labels = labels;
+      laneChart.data.datasets[0].data = data;
+      laneChart.update();
+    } else {
+      laneChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Current Cycle Progress (%)',
+            data: data,
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: 'Progress (%)' }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const index = context.dataIndex;
+                  const lane = lanes[index];
+                  return `${lane.name}: ${context.parsed.y.toFixed(2)}%`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+  
+  /***********************
+   * BAR CHART: Number of Passes Chart (Fractional)
+   ***********************/
+  function updatePassesChart(day) {
+    const labels = lanes.map(lane => lane.name);
+    const data = lanes.map(lane => day / lane.totalDays);
+    const ctx = document.getElementById('passesChart').getContext('2d');
+    if (passesChart) {
+      passesChart.data.labels = labels;
+      passesChart.data.datasets[0].data = data;
+      passesChart.update();
+    } else {
+      passesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Number of Passes (Fractional)',
+            data: data,
+            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Passes' }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${lanes[context.dataIndex].name}: ${context.parsed.y.toFixed(2)} passes`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+  
+  /***********************
+   * EVENT LISTENERS
+   ***********************/
+  document.getElementById("calculateBtn").addEventListener("click", updateMetrics);
+  document.getElementById("daySlider").addEventListener("input", function() {
+    document.getElementById("dayInput").value = this.value;
+    updateMetrics();
+  });
+  document.getElementById("dayInput").addEventListener("input", function() {
+    document.getElementById("daySlider").value = this.value;
+    updateMetrics();
+  });
+  
+  // Initial calculation on page load.
+  updateMetrics();
+  </script>
+</body>
+</html>
