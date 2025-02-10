@@ -23,39 +23,58 @@
 <body>
   <div class="container">
     <h1 class="mb-4">Professor Horner's Bible Reading Metrics – Gauges</h1>
-    
+
     <!-- Day Input: Number input and slider -->
     <div class="form-group">
       <label for="dayInput"><strong>Enter Day Number:</strong></label>
-      <input type="number" id="dayInput" class="form-control" value="250" min="1">
+      <!-- The default value will be updated by JavaScript -->
+      <input type="number" id="dayInput" class="form-control" min="1">
     </div>
     <div class="form-group">
       <label for="daySlider"><strong>Adjust Day (Slider):</strong></label>
-      <input type="range" id="daySlider" class="form-control-range" min="1" max="1000" value="250" step="1">
+      <input type="range" id="daySlider" class="form-control-range" min="1" max="1000" step="1">
     </div>
     <button id="calculateBtn" class="btn btn-primary mb-4">Calculate Metrics</button>
     <hr>
-    
+
     <!-- Overall Metrics -->
     <div id="overallMetrics"></div>
-    
+
     <!-- Detailed Lane Metrics -->
     <div id="lanesMetrics"></div>
-    
+
     <hr>
     <h2>Lane Progress Chart (Bar)</h2>
     <canvas id="laneChart" width="400" height="200"></canvas>
-    
+
     <hr>
     <h2>Number of Passes Chart (Fractional)</h2>
     <canvas id="passesChart" width="400" height="200"></canvas>
-    
+
     <hr>
     <h2>Lane Gauges (Circular Progress)</h2>
     <div id="gaugesContainer"></div>
   </div>
 
   <script>
+  /***********************
+   * DATE CONFIGURATION
+   *
+   * The program now assumes that Day 1 is on a fixed ISO date.
+   * We computed that 169 days ago from 2025-02-10 is 2024-08-25.
+   ***********************/
+  const START_DATE = "2024-08-26"; // Day 1 (ISO): 2024-08-25
+
+  // Function to compute the current day number based on the difference between today and START_DATE.
+  function getCurrentDay() {
+    const today = new Date();
+    const start = new Date(START_DATE);
+    const diffTime = today - start;
+    // Add one so that the start date is considered Day 1.
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays;
+  }
+
   /***********************
    * DATA DEFINITION
    *
@@ -307,12 +326,12 @@
         wrapper.appendChild(canvas);
         wrapper.appendChild(label);
         container.appendChild(wrapper);
-  
+
         // Calculate progress for this lane.
         let remainder = day % lane.totalDays;
         if (remainder === 0) { remainder = lane.totalDays; }
         let progress = (remainder / lane.totalDays) * 100;
-  
+
         // Create a half‑doughnut gauge chart.
         let ctx = canvas.getContext("2d");
         let gaugeChart = new Chart(ctx, {
@@ -356,42 +375,43 @@
   let passesChart = null;
   function updateMetrics() {
     const day = parseInt(document.getElementById("dayInput").value) || 1;
-    
+
     // Synchronize slider and number input.
     document.getElementById("daySlider").value = day;
-    
+
     // Overall Bible completions (whole passes): minimum complete cycles over lanes.
     let bibleCompletions = lanes.reduce((minVal, lane) => {
       return Math.min(minVal, Math.floor(day / lane.totalDays));
     }, Infinity);
-    
+
     // Overall fractional passes (minimum across lanes).
     let biblePasses = lanes.reduce((minVal, lane) => {
       return Math.min(minVal, day / lane.totalDays);
     }, Infinity);
-    
+
     // Determine bottleneck lane.
     const bottleneckLane = lanes.reduce((maxLane, lane) => {
       return (lane.totalDays > maxLane.totalDays) ? lane : maxLane;
     }, lanes[0]);
     let bottleneckRemainder = day % bottleneckLane.totalDays;
     let bottleneckProgress = (bottleneckRemainder === 0) ? 1 : bottleneckRemainder / bottleneckLane.totalDays;
-    
+
     // Build overall metrics HTML.
     let overallHTML = `
       <h2>Overall Metrics</h2>
+      <p><strong>Program Start Date (Day 1):</strong> ${START_DATE}</p>
       <p><strong>Day:</strong> ${day}</p>
       <p><strong>Bible completions (whole passes):</strong> ${bibleCompletions}</p>
       <p>
         <strong>Overall Bible passes (fractional, minimum across lanes):</strong> ${biblePasses.toFixed(2)}
       </p>
       <p>
-        <strong>Bottleneck Lane:</strong> ${bottleneckLane.name} (${bottleneckLane.totalDays} chapters) – 
+        <strong>Bottleneck Lane:</strong> ${bottleneckLane.name} (${bottleneckLane.totalDays} chapters) –
         Current cycle progress: ${(bottleneckProgress * 100).toFixed(2)}%
       </p>
     `;
     document.getElementById("overallMetrics").innerHTML = overallHTML;
-    
+
     // Build detailed lane metrics.
     let lanesHTML = `<h2>Lane Metrics</h2>`;
     lanes.forEach(lane => {
@@ -438,14 +458,14 @@
       lanesHTML += `</tbody></table></div>`;
     });
     document.getElementById("lanesMetrics").innerHTML = lanesHTML;
-    
+
     // Update bar charts.
     updateLaneChart(day);
     updatePassesChart(day);
     // Update gauge (circular) charts.
     updateLaneGauges(day);
   }
-  
+
   /***********************
    * BAR CHART: Lane Progress Chart
    ***********************/
@@ -497,7 +517,7 @@
       });
     }
   }
-  
+
   /***********************
    * BAR CHART: Number of Passes Chart (Fractional)
    ***********************/
@@ -542,7 +562,7 @@
       });
     }
   }
-  
+
   /***********************
    * EVENT LISTENERS
    ***********************/
@@ -555,7 +575,12 @@
     document.getElementById("daySlider").value = this.value;
     updateMetrics();
   });
-  
+
+  // On initial load, set the day input/slider to the computed current day.
+  const currentDay = getCurrentDay();
+  document.getElementById("dayInput").value = currentDay;
+  document.getElementById("daySlider").value = currentDay;
+
   // Initial calculation on page load.
   updateMetrics();
   </script>
