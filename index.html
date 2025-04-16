@@ -67,13 +67,14 @@
 
   // Function to compute the current day number based on the difference between today and START_DATE.
   function getCurrentDay() {
-    const today = new Date();
-    const start = new Date(START_DATE);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const start = new Date(new Date(START_DATE).getFullYear(), new Date(START_DATE).getMonth(), new Date(START_DATE).getDate());
     const diffTime = today - start;
-    // Add one so that the start date is considered Day 1.
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return diffDays;
   }
+
 
   /***********************
    * DATA DEFINITION
