@@ -71,7 +71,7 @@
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const start = new Date(new Date(START_DATE).getFullYear(), new Date(START_DATE).getMonth(), new Date(START_DATE).getDate());
     const diffTime = today - start;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   }
 
